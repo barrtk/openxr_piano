@@ -1,0 +1,32 @@
+# Unreal Engine 5
+Binaries/
+Build/
+DerivedDataCache/
+Intermediate/
+Saved/
+.vscode/
+*.xcworkspace
+*.sln
+*.suo
+*.opensdf
+*.sdf
+*.VC.db
+*.VC.opendb
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.env
+
+# Web / Three.js
+node_modules/
+dist/
+.DS_Store
+
+# Keep assets
+!piano.glb
+!samples/
+!mini-bridge.py
+!run.bat
