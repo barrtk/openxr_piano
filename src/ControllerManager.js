@@ -24,9 +24,18 @@ export class ControllerManager {
 
             this.controllers.push({ controller, controllerGrip });
 
-            // Basic "Glow" for controllers - add a small point light to each
-            const light = new THREE.PointLight(0x00f2ff, 1, 0.5);
-            controller.add(light);
+            // Handle Input Source attachment
+            controller.addEventListener('connected', (event) => {
+                console.log(`Controller ${i} Connected: ${event.data.handedness}`);
+                controller.userData.inputSource = event.data;
+                controllerGrip.visible = true;
+            });
+
+            controller.addEventListener('disconnected', () => {
+                console.log(`Controller ${i} Disconnected`);
+                controller.userData.inputSource = null;
+                controllerGrip.visible = false;
+            });
         }
     }
 }

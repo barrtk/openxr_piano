@@ -8,6 +8,7 @@ export class PianoManager {
         this.audio = null; // Set after init
         this.model = null;
         this.keys = new Map(); // Note number -> Mesh
+        this.keyOffsets = new Map(); // Note number -> Vector3 (Local Front Offset)
 
         this.loadModel();
     }
@@ -23,7 +24,7 @@ export class PianoManager {
 
             this.scene.add(this.model);
 
-            // Map keys
+            // Map keys and compute offsets
             this.model.traverse((child) => {
                 if (child.isMesh) {
                     // Make sure materials are visible
@@ -35,6 +36,14 @@ export class PianoManager {
                     if (child.name.startsWith('Note')) {
                         const noteNum = parseInt(child.name.replace('Note', ''));
                         this.keys.set(noteNum, child);
+                        
+                        // Pre-calculate Front Edge Offset
+                        if (!child.geometry.boundingBox) child.geometry.computeBoundingBox();
+                        const bbox = child.geometry.boundingBox;
+                        const centerX = (bbox.min.x + bbox.max.x) / 2;
+                        const maxZ = bbox.max.z; 
+                        const centerY = (bbox.min.y + bbox.max.y) / 2;
+                        this.keyOffsets.set(noteNum, new THREE.Vector3(centerX, centerY, maxZ));
                     }
                 }
             });
@@ -45,6 +54,19 @@ export class PianoManager {
             console.error("Błąd ładowania piano.glb:", error);
             this.ui.showNotification("Błąd ładowania modelu!", false);
         });
+    }
+
+    getKeyFrontWorldPosition(noteNum, target) {
+        const key = this.keys.get(noteNum);
+        const offset = this.keyOffsets.get(noteNum);
+        if (!key || !offset) return null;
+
+        // Apply local offset to key world position
+        // Since keys might be rotated/scaled within the group, 
+        // we use localToWorld on the key mesh.
+        target.copy(offset);
+        key.localToWorld(target);
+        return target;
     }
 
     updatePose(position, rotation, scale) {
@@ -79,5 +101,29 @@ export class PianoManager {
                 key.material.emissive.setHex(0x000000);
             }
         }
+    }
+
+    getCalibrationData() {
+        if (this.keys.size === 0) return null;
+
+        let minNote = 999, maxNote = -1;
+        this.keys.forEach((_, note) => {
+            if (note < minNote) minNote = note;
+            if (note > maxNote) maxNote = note;
+        });
+
+        const keyL = this.keys.get(minNote);
+        const keyR = this.keys.get(maxNote);
+        const offL = this.keyOffsets.get(minNote);
+        const offR = this.keyOffsets.get(maxNote);
+
+        if (!keyL || !keyR || !offL || !offR) return null;
+
+        return {
+            leftLocal: keyL.position.clone().add(offL),
+            rightLocal: keyR.position.clone().add(offR),
+            noteL: minNote,
+            noteR: maxNote
+        };
     }
 }

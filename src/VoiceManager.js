@@ -16,11 +16,13 @@ export class VoiceManager {
             'zapisz': () => this.onSave(),
             'start': () => this.onStart(),
             'graj': () => this.onStart(),
-            'stop': () => this.onStop()
+            'stop': () => this.onStop(),
+            'wyłącz kalibrację': () => this.onStopCalibration(),
+            'koniec kalibracji': () => this.onStopCalibration()
         };
 
         this.init();
-        console.log("VoiceManager V785 Loaded (Diagnostics)");
+        console.log("VoiceManager V798 Loaded (Pinch Calibration)");
     }
 
     init() {
@@ -158,11 +160,16 @@ export class VoiceManager {
 
     onCalibrate() {
         window.dispatchEvent(new CustomEvent('voice-calibrate'));
+        if (this.onCalibrateCallback) this.onCalibrateCallback();
     }
 
-    onSave() { }
+    onStopCalibration() {
+        if (this.onStopCalibrationCallback) this.onStopCalibrationCallback();
+    }
 
-    onStart() { }
+    onSave() { if (this.onSaveCallback) this.onSaveCallback(); }
+
+    onStart() { if (this.onStartCallback) this.onStartCallback(); }
 
     onStop() {
         this.isListening = false;

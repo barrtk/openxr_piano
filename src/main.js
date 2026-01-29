@@ -3,16 +3,16 @@ import { VRButton } from 'three/addons/webxr/VRButton.js';
 import { ARButton } from 'three/addons/webxr/ARButton.js';
 import { XRHandModelFactory } from 'three/addons/webxr/XRHandModelFactory.js'; // Added this line
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { UIManager } from './UIManager.js?v=785';
-import { HandManager } from './HandManager.js?v=785';
-import { VoiceManager } from './VoiceManager.js?v=785';
-import { PianoManager } from './PianoManager.js?v=785';
-import { CalibrationManager } from './CalibrationManager.js?v=785';
-import { ControllerManager } from './ControllerManager.js?v=785';
-import { InteractionManager } from './InteractionManager.js?v=785';
-import { AudioManager } from './AudioManager.js?v=785';
-import { FallingBlockManager } from './FallingBlockManager.js?v=785';
-import { SongManager } from './SongManager.js?v=785';
+import { UIManager } from './UIManager.js?v=805';
+import { HandManager } from './HandManager.js?v=805';
+import { VoiceManager } from './VoiceManager.js?v=805';
+import { PianoManager } from './PianoManager.js?v=805';
+import { CalibrationManager } from './CalibrationManager.js?v=805';
+import { ControllerManager } from './ControllerManager.js?v=805';
+import { InteractionManager } from './InteractionManager.js?v=805';
+import { AudioManager } from './AudioManager.js?v=805';
+import { FallingBlockManager } from './FallingBlockManager.js?v=805';
+import { SongManager } from './SongManager.js?v=805';
 
 class App {
     constructor() {
@@ -47,8 +47,8 @@ class App {
 
         // Setup AR Button (prioritized for Passthrough)
         const sessionInit = {
-            requiredFeatures: ['local-floor', 'hand-tracking'],
-            optionalFeatures: ['hit-test', 'layers']
+            requiredFeatures: ['local-floor'],
+            optionalFeatures: ['hand-tracking', 'hit-test', 'layers']
         };
 
         document.body.appendChild(ARButton.createButton(this.renderer, sessionInit));
@@ -70,13 +70,14 @@ class App {
         this.songs = new SongManager();
 
         this.voice = new VoiceManager(this.ui, this.audio);
-        this.calibration = new CalibrationManager(this.hands, this.piano, this.ui);
-        this.interaction = new InteractionManager(this.hands, this.piano);
+        this.calibration = new CalibrationManager(this.hands, this.piano, this.ui, this.controllers);
+        this.interaction = new InteractionManager(this.hands, this.piano, this.ui, this.calibration, this.camera);
 
         // Link voice commands to actions
         this.voice.onStartCallback = () => this.startSong();
         this.voice.onCalibrateCallback = () => this.calibration.startCalibration();
         this.voice.onSaveCallback = () => this.calibration.confirmPoint();
+        this.voice.onStopCalibrationCallback = () => this.calibration.stopCalibration();
 
         this.songStartTime = 0;
         this.isSongPlaying = false;
@@ -106,6 +107,7 @@ class App {
         this.voice.commands['kalibruj'] = () => this.calibration.startCalibration();
 
         this.init();
+        this.ui.init3D(this.scene, this.camera);
 
         window.addEventListener('resize', () => this.onWindowResize());
 
@@ -140,7 +142,7 @@ class App {
     }
 
     async init() {
-        console.log("App V785 Initializing (Diagnostics)...");
+        console.log("App V790 Initializing (Calibration Update)...");
         this.ui.showNotification("System VR Piano Inicjalizuje...", true);
 
         // Load Piano Model (Placeholder logical start)
@@ -179,6 +181,12 @@ class App {
             this.fallingBlocks.update(songTime);
         }
 
+        // Pass controller array to calibration manager
+        if (this.controllers && this.controllers.controllers) {
+            this.calibration.update(this.controllers.controllers);
+        }
+
+        this.ui.update3D(this.camera);
         this.interaction.update();
         this.renderer.render(this.scene, this.camera);
     }

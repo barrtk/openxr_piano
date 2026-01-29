@@ -9,7 +9,7 @@ export class AudioManager {
         this.isLoaded = false;
 
         this.init();
-        console.log("AudioManager V785 Loaded (Raw Diagnostics)");
+        console.log("AudioManager V790 Loaded (Calibration Ready)");
     }
 
     init() {
@@ -84,49 +84,48 @@ export class AudioManager {
 
         try {
             console.log("AudioManager: Requesting Tone.UserMedia with constraints (V785)...");
-            
+
             // Correctly pass constraints to Tone.UserMedia
             await this.mic.open(constraints);
             this.mic.connect(this.meter);
 
-            console.log("AudioManager: Mic status:", this.mic.state);
-
-            // Attempt to access the underlying stream for diagnostics and raw analyzer
-            // Tone.js usually exposes it as .stream or we can try to find it
-            // If not available, we skip the raw analyzer specific setup that relies on MediaStreamSource
-            // and instead connect mic node to analyzer directly if possible.
+                        console.log("AudioManager: Mic status:", this.mic.state);
             
-            // Try to find stream (UserMedia in Tone usually has a '_mediaStream' or 'stream')
-            const stream = this.mic.stream || this.mic._mediaStream;
-
-            if (stream) {
-                const track = stream.getAudioTracks()[0];
-                if (track) {
-                    console.log(`V785 Mic Track: label="${track.label}", state="${track.readyState}", muted=${track.muted}, enabled=${track.enabled}`);
-                    try {
-                        const settings = track.getSettings();
-                        console.log("V785 Mic Settings:", JSON.stringify(settings));
-                    } catch (e) { console.log("Could not get track settings"); }
-                }
-
-                // Raw Analyser Setup
-                const rawContext = Tone.getContext().rawContext;
-                this.rawAnalyzer = rawContext.createAnalyser();
-                // Create source from the stream we got from Tone
-                const source = rawContext.createMediaStreamSource(stream);
-                source.connect(this.rawAnalyzer);
-                this.rawDataArray = new Uint8Array(this.rawAnalyzer.frequencyBinCount);
-            } else {
-                console.warn("AudioManager: Could not access internal stream for diagnostics. Connecting mic node directly to analyzer.");
-                // Fallback: connect Tone node to native analyzer
-                const rawContext = Tone.getContext().rawContext;
-                this.rawAnalyzer = rawContext.createAnalyser();
-                this.mic.connect(this.rawAnalyzer);
-                this.rawDataArray = new Uint8Array(this.rawAnalyzer.frequencyBinCount);
-            }
-
-            return true;
-        } catch (e) {
+                        // Diagnostics & Raw Analyzer (Nested try-catch to prevent blocking success)
+                        try {
+                            // Try to find stream (UserMedia in Tone usually has a '_mediaStream' or 'stream')
+                            const stream = this.mic.stream || this.mic._mediaStream;
+            
+                            if (stream) {
+                                const track = stream.getAudioTracks()[0];
+                                if (track) {
+                                    console.log(`V785 Mic Track: label="${track.label}", state="${track.readyState}", muted=${track.muted}, enabled=${track.enabled}`);
+                                    try {
+                                        const settings = track.getSettings();
+                                        console.log("V785 Mic Settings:", JSON.stringify(settings));
+                                    } catch (e) { console.log("Could not get track settings"); }
+                                }
+            
+                                // Raw Analyser Setup
+                                const rawContext = Tone.getContext().rawContext;
+                                this.rawAnalyzer = rawContext.createAnalyser();
+                                // Create source from the stream we got from Tone
+                                const source = rawContext.createMediaStreamSource(stream);
+                                source.connect(this.rawAnalyzer);
+                                this.rawDataArray = new Uint8Array(this.rawAnalyzer.frequencyBinCount);
+                            } else {
+                                console.warn("AudioManager: Could not access internal stream for diagnostics. Connecting mic node directly to analyzer.");
+                                // Fallback: connect Tone node to native analyzer
+                                const rawContext = Tone.getContext().rawContext;
+                                this.rawAnalyzer = rawContext.createAnalyser();
+                                this.mic.connect(this.rawAnalyzer);
+                                this.rawDataArray = new Uint8Array(this.rawAnalyzer.frequencyBinCount);
+                            }
+                        } catch (diagnosticErr) {
+                            console.warn("AudioManager: Diagnostics/RawAnalyzer failed (non-critical):", diagnosticErr);
+                        }
+            
+                        return true;        } catch (e) {
             console.error("AudioManager: Failed to open mic:", e);
             return false;
         }
