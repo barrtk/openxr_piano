@@ -10,16 +10,20 @@ export class InteractionManager {
 
         this.activeNotes = new Set();
         this.noteCooldowns = new Map(); // Map<noteNum, timestamp>
+        this.noteActivationTime = new Map(); // Map<noteNum, timestamp> - when note was first pressed
         this.menuCooldown = 0;
 
-        // Configuration
-        this.pressThreshold = 0.035; // 3.5cm to activate
-        this.releaseThreshold = 0.05; // 5.0cm to deactivate (Hysteresis)
-        this.debounceTime = 100; // 100ms cooldown after release
-        
-        this.tipJoints = ['index-finger-tip', 'middle-finger-tip', 'thumb-tip', 'ring-finger-tip', 'pinky-finger-tip'];
-        
+        // Configuration - STABLE MODE with large hysteresis
+        this.pressThreshold = 0.025; // 2.5cm to activate (easier to trigger)
+        this.releaseThreshold = 0.045; // 4.5cm to deactivate (large hysteresis gap = 2cm)
+        this.debounceTime = 200; // 200ms cooldown after release
+        this.minHoldTime = 80; // Minimum 80ms hold before allowing release
+
+        // Only use index and middle fingers for piano (most precise)
+        this.tipJoints = ['index-finger-tip', 'middle-finger-tip'];
+
         this.tempVec = new THREE.Vector3();
+        this.tipPos = new THREE.Vector3();
     }
 
     update() {
@@ -45,11 +49,11 @@ export class InteractionManager {
 
         // Get Right Index for interaction
         const rightIndex = this.hands.getFingertip(1, 'index-finger-tip');
-        
+
         // Calculate menu position: 10cm above wrist
         const upVector = new THREE.Vector3(0, 1, 0).applyQuaternion(wristRot);
-        const menuPos = wristPos.clone().add(upVector.clone().multiplyScalar(0.1)); 
-        
+        const menuPos = wristPos.clone().add(upVector.clone().multiplyScalar(0.1));
+
         // Make menu look at camera
         const lookAtRot = new THREE.Quaternion().setFromRotationMatrix(
             new THREE.Matrix4().lookAt(menuPos, this.camera.position, new THREE.Vector3(0, 1, 0))
@@ -57,16 +61,16 @@ export class InteractionManager {
 
         // Check distance to Right Index
         let isHovered = false;
-        
+
         if (rightIndex && rightIndex.visible) {
             const indexPos = new THREE.Vector3();
             rightIndex.getWorldPosition(indexPos);
             const dist = indexPos.distanceTo(menuPos);
-            
+
             if (dist < 0.04) isHovered = true;
             if (dist < 0.02 && Date.now() > this.menuCooldown) {
                 this.menuCooldown = Date.now() + 2000;
-                
+
                 // Toggle Calibration
                 if (this.calibration.state === 'IDLE') {
                     console.log("Wrist Menu: Start Calibration");
@@ -85,60 +89,98 @@ export class InteractionManager {
         if (!this.piano.model) return;
 
         const currentFrameNotes = new Set();
+        const now = Date.now();
 
-        // Check each hand
+        // Track which finger is pressing which note (to avoid conflicts)
+        const fingerToNote = new Map(); // "handIndex-jointName" -> { noteNum, distance }
+
+        // Phase 1: Find the CLOSEST key for each fingertip
         this.hands.hands.forEach((hand, handIdx) => {
             if (!hand.joints) return;
 
-            // Check each fingertip
             this.tipJoints.forEach(jointName => {
                 const tip = hand.joints[jointName];
                 if (!tip || tip.visible === false) return;
 
-                const tipPos = new THREE.Vector3();
-                tip.getWorldPosition(tipPos);
+                tip.getWorldPosition(this.tipPos);
 
-                // Check collision with piano keys front edge
+                let closestNote = null;
+                let closestDist = Infinity;
+
+                // Find the closest key to this fingertip
                 this.piano.keys.forEach((mesh, noteNum) => {
                     const frontPos = this.piano.getKeyFrontWorldPosition(noteNum, this.tempVec);
                     if (!frontPos) return;
 
-                    const dist = tipPos.distanceTo(frontPos);
-                    
-                    // Hysteresis: Require finger to move further away to release the key
-                    // than to press it. This prevents flickering at the boundary.
-                    const threshold = this.activeNotes.has(noteNum) ? this.releaseThreshold : this.pressThreshold;
+                    const dist = this.tipPos.distanceTo(frontPos);
 
-                    if (dist < threshold) {
-                        currentFrameNotes.add(noteNum);
-                        // Store debug info about which finger pressed it
-                        if (!this.activeNotes.has(noteNum)) {
-                             // console.log(`Piano Interaction: Key ${noteNum} ...`); // Reduced log spam
-                        }
+                    if (dist < closestDist) {
+                        closestDist = dist;
+                        closestNote = noteNum;
                     }
                 });
+
+                // Store the closest key for this finger
+                if (closestNote !== null) {
+                    const fingerKey = `${handIdx}-${jointName}`;
+                    fingerToNote.set(fingerKey, { noteNum: closestNote, distance: closestDist });
+                }
             });
         });
 
-        // Trigger press for new collisions
-        currentFrameNotes.forEach(noteNum => {
-            if (!this.activeNotes.has(noteNum)) {
-                // Debounce: Prevent rapid re-triggering after release
+        // Phase 2: For each note, only activate if CLOSEST finger is within threshold
+        // This prevents multiple fingers from activating the same note
+        const noteToFingers = new Map(); // noteNum -> [{ fingerKey, distance }]
+
+        fingerToNote.forEach(({ noteNum, distance }, fingerKey) => {
+            if (!noteToFingers.has(noteNum)) {
+                noteToFingers.set(noteNum, []);
+            }
+            noteToFingers.get(noteNum).push({ fingerKey, distance });
+        });
+
+        // For each potential note, pick the closest finger
+        noteToFingers.forEach((fingers, noteNum) => {
+            // Sort by distance
+            fingers.sort((a, b) => a.distance - b.distance);
+            const closest = fingers[0];
+
+            // Apply hysteresis
+            const threshold = this.activeNotes.has(noteNum)
+                ? this.releaseThreshold
+                : this.pressThreshold;
+
+            if (closest.distance < threshold) {
+                // Check debounce
                 const lastRelease = this.noteCooldowns.get(noteNum) || 0;
-                if (Date.now() - lastRelease > this.debounceTime) {
-                    console.log(`Piano Interaction: Press Key ${noteNum}`);
-                    this.piano.pressKey(noteNum);
-                    this.activeNotes.add(noteNum);
+                if (now - lastRelease > this.debounceTime || this.activeNotes.has(noteNum)) {
+                    currentFrameNotes.add(noteNum);
                 }
             }
         });
 
-        // Trigger release for lost collisions
+        // Phase 3: Trigger press for new collisions
+        currentFrameNotes.forEach(noteNum => {
+            if (!this.activeNotes.has(noteNum)) {
+                console.log(`Piano: Press Key ${noteNum}`);
+                this.piano.pressKey(noteNum);
+                this.activeNotes.add(noteNum);
+                this.noteActivationTime.set(noteNum, now); // Track when note was pressed
+            }
+        });
+
+        // Phase 4: Trigger release for lost collisions (with minimum hold time)
         this.activeNotes.forEach(noteNum => {
             if (!currentFrameNotes.has(noteNum)) {
-                this.piano.releaseKey(noteNum);
-                this.activeNotes.delete(noteNum);
-                this.noteCooldowns.set(noteNum, Date.now()); // Start cooldown
+                // Check minimum hold time before releasing
+                const activationTime = this.noteActivationTime.get(noteNum) || 0;
+                if (now - activationTime >= this.minHoldTime) {
+                    this.piano.releaseKey(noteNum);
+                    this.activeNotes.delete(noteNum);
+                    this.noteActivationTime.delete(noteNum);
+                    this.noteCooldowns.set(noteNum, now);
+                }
+                // If minHoldTime not met, keep the note active for next frame
             }
         });
     }

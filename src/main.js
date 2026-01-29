@@ -3,16 +3,16 @@ import { VRButton } from 'three/addons/webxr/VRButton.js';
 import { ARButton } from 'three/addons/webxr/ARButton.js';
 import { XRHandModelFactory } from 'three/addons/webxr/XRHandModelFactory.js'; // Added this line
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { UIManager } from './UIManager.js?v=805';
-import { HandManager } from './HandManager.js?v=805';
-import { VoiceManager } from './VoiceManager.js?v=805';
-import { PianoManager } from './PianoManager.js?v=805';
-import { CalibrationManager } from './CalibrationManager.js?v=805';
-import { ControllerManager } from './ControllerManager.js?v=805';
-import { InteractionManager } from './InteractionManager.js?v=805';
-import { AudioManager } from './AudioManager.js?v=805';
-import { FallingBlockManager } from './FallingBlockManager.js?v=805';
-import { SongManager } from './SongManager.js?v=805';
+import { UIManager } from './UIManager.js?v=806';
+import { HandManager } from './HandManager.js?v=806';
+import { VoiceManager } from './VoiceManager.js?v=806';
+import { PianoManager } from './PianoManager.js?v=806';
+import { CalibrationManager } from './CalibrationManager.js?v=806';
+import { ControllerManager } from './ControllerManager.js?v=806';
+import { InteractionManager } from './InteractionManager.js?v=806';
+import { AudioManager } from './AudioManager.js?v=806';
+import { FallingBlockManager } from './FallingBlockManager.js?v=806';
+import { SongManager } from './SongManager.js?v=806';
 
 class App {
     constructor() {
@@ -186,6 +186,7 @@ class App {
             this.calibration.update(this.controllers.controllers);
         }
 
+        this.hands.update(); // Update glove visuals
         this.ui.update3D(this.camera);
         this.interaction.update();
         this.renderer.render(this.scene, this.camera);
