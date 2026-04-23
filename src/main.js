@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════════
 // VrPiano554 — 3D Viewer + MIDI Playback + Practice Mode
-// ver: 1.6.2
+// ver: 1.6.3
 // ═══════════════════════════════════════════════════════════════
 
 import * as THREE from 'three';
@@ -210,6 +210,10 @@ function updatePianoKeyVisuals(dt) {
             // CORRECT HIT — bright green
             kd.mesh.material.emissive.copy(glowHit);
             kd.mesh.material.emissiveIntensity = 0.7;
+            
+            // Continuous sparks (Guitar Hero style sustain)
+            const kp = keyWorldPos.get(midi);
+            if (kp) emitSparks(kp.cx, kp.topY, kp.cz, kd.isBlack, 2);
         } else if (anim.current > 0.01) {
             kd.mesh.material.emissive.copy(kd.isBlack ? glowPurple : glowCyan);
             kd.mesh.material.emissiveIntensity = anim.current * 0.5;
@@ -774,7 +778,7 @@ if (btnSpeed) {
 // ═══════════════════════════════════════════════════════════════
 // SPARK PARTICLE SYSTEM
 // ═══════════════════════════════════════════════════════════════
-const SPARK_POOL_SIZE = 300;
+const SPARK_POOL_SIZE = 1500;
 const SPARK_LIFETIME = 0.6;
 const sparkPool = [];
 let sparkMesh = null;
@@ -806,8 +810,8 @@ let sparkMesh = null;
     }
 })();
 
-function emitSparks(x, y, z, bk) {
-    const count = 6 + Math.floor(Math.random() * 6);
+function emitSparks(x, y, z, bk, forceCount = 0) {
+    const count = forceCount > 0 ? forceCount : 6 + Math.floor(Math.random() * 6);
     for (let i = 0, spawned = 0; i < SPARK_POOL_SIZE && spawned < count; i++) {
         const s = sparkPool[i];
         if (s.alive) continue;
@@ -901,4 +905,4 @@ window.addEventListener('resize', () => {
 });
 
 animate();
-console.log('VrPiano554 v1.6.2');
+console.log('VrPiano554 v1.6.3');
