@@ -4,8 +4,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VrPiano554 - WebXR Edition</title>
-    <link rel="stylesheet" href="style.css?v=795">
+    <title>VrPiano554 - 3D Viewer</title>
+    <meta name="description" content="Interaktywny podgląd modelu 3D pianina VR z trybem ćwiczenia, spadającymi blokami i syntezatorem">
+    <link rel="stylesheet" href="style.css?v=951">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
@@ -25,13 +26,92 @@
     <div id="app">
         <canvas id="canvas"></canvas>
         <div id="overlay">
-            <button id="voice-trigger">Aktywuj Mikrofon (Głos)</button>
-            <div id="voice-status">Czekam na głos...</div>
-            <div id="notification-container"></div>
-            <div id="debug-console"></div>
+            <div id="app-version">ver: 1.5.1</div>
+
+            <!-- HUD Panel -->
+            <div id="hud-panel" class="collapsed">
+                <div id="hud-header" onclick="this.parentElement.classList.toggle('collapsed')">
+                    <span id="hud-title">🎹 VR Piano Viewer</span>
+                    <span id="hud-toggle">▶</span>
+                </div>
+                <div id="hud-body">
+                    <div class="hud-section-label">Nawigacja (Blender)</div>
+                    <div class="hud-controls">
+                        <div class="control-row"><span class="key">ŚPM</span> Orbitowanie</div>
+                        <div class="control-row"><span class="key">Shift+ŚPM</span> Przesuwanie</div>
+                        <div class="control-row"><span class="key">PPM</span> Orbita (alt)</div>
+                        <div class="control-row"><span class="key">Scroll</span> Zoom</div>
+                    </div>
+                    <div class="hud-section-label mt">Klawiatura → Pianino</div>
+                    <div class="hud-controls">
+                        <div class="control-row"><span class="key">Z–M</span> Białe C3–B3</div>
+                        <div class="control-row"><span class="key">S D G H J</span> Czarne ♯</div>
+                        <div class="control-row"><span class="key">Q–P</span> Białe C4–E5</div>
+                        <div class="control-row"><span class="key">2 3 5 6 7 9 0</span> Czarne ♯</div>
+                        <div class="control-row"><span class="key">Spacja</span> Play / Pause</div>
+                    </div>
+                    <div class="hud-section-label mt">MIDI</div>
+                    <div id="midi-status">Łączenie z MIDI...</div>
+                </div>
+            </div>
+
+            <!-- Active Note Display -->
+            <div id="note-display">
+                <div id="note-label">Aktywne nuty</div>
+                <div id="active-note">—</div>
+            </div>
+
+            <!-- Practice Mode Indicator -->
+            <div id="practice-indicator" class="hidden">
+                <div id="practice-icon">🎯</div>
+                <div id="practice-text">TRYB ĆWICZENIA</div>
+                <div id="practice-hint">Wciśnij podświetlone klawisze</div>
+            </div>
+
+            <!-- Player Panel -->
+            <div id="player-panel">
+                <div id="player-top-row">
+                    <select id="song-selector" title="Wybierz piosenkę">
+                        <option value="">Ładowanie listy...</option>
+                    </select>
+                    <span id="player-note-count"></span>
+                </div>
+                <div id="player-controls-row">
+                    <button id="btn-stop" class="player-btn" title="Stop">⏹</button>
+                    <button id="btn-play" class="player-btn primary" title="Play / Pause">▶</button>
+                    <button id="btn-practice" class="player-btn" title="Tryb ćwiczenia — bloki czekają na wciśnięcie klawisza">🎯</button>
+                    <label class="player-btn" title="Wczytaj inny plik MIDI" id="btn-load-midi">
+                        📂
+                        <input type="file" id="midi-file-input" accept=".mid,.midi" hidden>
+                    </label>
+                    <div id="player-timeline-wrap">
+                        <input type="range" id="timeline" min="0" max="1000" value="0" step="1">
+                        <div id="timeline-fill"></div>
+                    </div>
+                    <div id="player-time">
+                        <span id="player-current-time">0:00</span>
+                        <span class="time-sep">/</span>
+                        <span id="player-total-time">0:00</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Position Display -->
+            <div id="position-display">
+                <span id="pos-x">X: 0.00</span>
+                <span id="pos-y">Y: 0.00</span>
+                <span id="pos-z">Z: 0.00</span>
+            </div>
+
+            <!-- Loading Overlay -->
+            <div id="loading-overlay">
+                <div id="loading-spinner"></div>
+                <div id="loading-text">Ładowanie modelu 3D...</div>
+                <div id="loading-progress">0%</div>
+            </div>
         </div>
     </div>
-    <script type="module" src="src/main.js?v=805"></script>
+    <script type="module" src="src/main.js?v=951"></script>
 </body>
 
 </html>

@@ -1,6 +1,8 @@
 import http.server
 import socketserver
 import time
+import json
+import glob
 import os
 
 PORT = 8000
@@ -18,6 +20,17 @@ class Handler(http.server.SimpleHTTPRequestHandler):
     def do_OPTIONS(self):
         self.send_response(204)
         self.end_headers()
+
+    def do_GET(self):
+        if self.path == '/api/midi-list':
+            midi_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'midi')
+            files = sorted([f for f in os.listdir(midi_dir) if f.lower().endswith(('.mid', '.midi'))])
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps(files).encode('utf-8'))
+        else:
+            super().do_GET()
 
     def do_POST(self):
         # print(f"POST request to {self.path}")
