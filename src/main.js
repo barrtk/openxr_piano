@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════════
 // VrPiano554 — 3D Viewer + MIDI Playback + Practice Mode
-// ver: 1.5.1
+// ver: 1.6.2
 // ═══════════════════════════════════════════════════════════════
 
 import * as THREE from 'three';
@@ -29,6 +29,7 @@ const totalTimeEl = document.getElementById('player-total-time');
 const songSelector = document.getElementById('song-selector');
 const noteCountEl = document.getElementById('player-note-count');
 const midiFileInput = document.getElementById('midi-file-input');
+const btnSpeed = document.getElementById('btn-speed');
 
 // ─── Three.js Core ───────────────────────────────────────────
 const renderer = new THREE.WebGLRenderer({
@@ -109,7 +110,7 @@ const pianoKeys = new Map();
 const keyAnimations = new Map();
 const noteRefCount = new Map();
 const pressedNotes = new Set();
-const userNotes = new Set(); // Notes pressed by user (keyboard/HW MIDI)
+const userNotes = new Map(); // Maps midi -> performance.now() of when it was pressed
 
 const KEY_PRESS_ANGLE = 0.06;
 const KEY_ANIM_SPEED = 14.0;
@@ -147,21 +148,26 @@ function noteOff(midi) {
 
 // ─── User input API (keyboard + HW MIDI) ────────────────────
 function handleUserNoteOn(midi) {
-    userNotes.add(midi);
+    userNotes.set(midi, performance.now());
     noteOn(midi);
     // Sparks on user key press
     const kp = keyWorldPos.get(midi);
     if (kp) emitSparks(kp.cx, kp.topY, kp.cz, isBlackKey(midi));
-    // Practice mode: pressing ANY correct key triggers the whole chord
+    // Practice mode: require individual correct keys
     if (practiceWaiting && waitingMidiSet.has(midi)) {
-        // Trigger ALL waiting notes at once (one key = whole chord)
-        for (const wn of waitingForNotes) {
-            triggerSongNote(wn);
+        // Trigger only the notes associated with this specific key
+        const matchingNotes = waitingForNotes.filter(n => n.midi === midi);
+        for (const wn of matchingNotes) triggerSongNote(wn);
+        
+        waitingMidiSet.delete(midi);
+        userNotes.set(midi, -1); // Mark as consumed so it doesn't auto-fulfill future notes
+
+        // Resume playback only when all required keys in the chord are hit
+        if (waitingMidiSet.size === 0) {
+            practiceWaiting = false;
+            waitingForNotes = [];
+            if (practiceIndicator) practiceIndicator.classList.remove('waiting');
         }
-        practiceWaiting = false;
-        waitingForNotes = [];
-        waitingMidiSet.clear();
-        if (practiceIndicator) practiceIndicator.classList.remove('waiting');
     }
 }
 function handleUserNoteOff(midi) {
@@ -366,6 +372,7 @@ let allNotes = [];
 let songDuration = 0;
 let songPlaying = false;
 let playbackTime = 0;
+let playbackSpeed = 1.0;
 let nextNoteIdx = 0;
 let activeSongNotes = [];
 let blocksMesh = null;
@@ -583,7 +590,8 @@ function processPlayback(dt) {
         return;
     }
 
-    playbackTime += dt;
+    const scaledDt = dt * playbackSpeed;
+    playbackTime += scaledDt;
     if (playbackTime >= songDuration + 0.5) { stopSong(); return; }
 
     // ALWAYS release ended notes first (before new notes can trigger return)
@@ -617,18 +625,29 @@ function processPlayback(dt) {
             playbackTime = groupTime; // Snap time
             if (practiceIndicator) practiceIndicator.classList.add('waiting');
 
-            // If user already holds ANY waiting key, trigger all & resume
-            for (const midi of waitingMidiSet) {
+            // If user pressed required keys slightly early (within 400ms tolerance), fulfill them immediately
+            const now = performance.now();
+            for (const midi of [...waitingMidiSet]) {
                 if (userNotes.has(midi)) {
-                    for (const wn of waitingForNotes) triggerSongNote(wn);
-                    practiceWaiting = false;
-                    waitingForNotes = [];
-                    waitingMidiSet.clear();
-                    if (practiceIndicator) practiceIndicator.classList.remove('waiting');
-                    break;
+                    const pressTime = userNotes.get(midi);
+                    // pressTime > 0 means it hasn't been consumed yet
+                    if (pressTime > 0 && (now - pressTime) < 400) {
+                        const matchingNotes = waitingForNotes.filter(n => n.midi === midi);
+                        for (const wn of matchingNotes) triggerSongNote(wn);
+                        waitingMidiSet.delete(midi);
+                        userNotes.set(midi, -1); // Consume the press
+                    }
                 }
             }
-            return;
+
+            // Still waiting for some keys?
+            if (waitingMidiSet.size > 0) {
+                return;
+            } else {
+                practiceWaiting = false;
+                waitingForNotes = [];
+                if (practiceIndicator) practiceIndicator.classList.remove('waiting');
+            }
         }
     } else {
         for (const n of newNotes) triggerSongNote(n);
@@ -741,6 +760,16 @@ if (timelineEl) {
     timelineEl.addEventListener('touchend', endDrag);
 }
 
+// Player Speed Event
+if (btnSpeed) {
+    const speeds = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0];
+    btnSpeed.addEventListener('click', () => {
+        const currentIdx = speeds.indexOf(playbackSpeed);
+        const nextIdx = (currentIdx + 1) % speeds.length;
+        playbackSpeed = speeds[nextIdx];
+        btnSpeed.textContent = `${playbackSpeed}x`;
+    });
+}
 
 // ═══════════════════════════════════════════════════════════════
 // SPARK PARTICLE SYSTEM
@@ -872,4 +901,4 @@ window.addEventListener('resize', () => {
 });
 
 animate();
-console.log('VrPiano554 v1.5.1');
+console.log('VrPiano554 v1.6.2');
