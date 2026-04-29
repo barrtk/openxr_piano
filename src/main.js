@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════════
 // VrPiano554 — 3D Viewer + MIDI Playback + Practice Mode
-// ver: 1.6.6
+// ver: 1.6.7
 // ═══════════════════════════════════════════════════════════════
 
 import * as THREE from 'three';
@@ -168,8 +168,16 @@ const KB_MIDI = {
 };
 
 // ─── noteOn / noteOff with ref counting ──────────────────────
+function sendHwMidi(midi, state, velocity = 100) {
+    for (const out of midiOutputs) {
+        try { out.send([state ? 0x90 : 0x80, midi, velocity]); } catch(e) {}
+    }
+}
+
 function noteOn(midi) {
-    noteRefCount.set(midi, (noteRefCount.get(midi)||0) + 1);
+    const c = (noteRefCount.get(midi)||0) + 1;
+    noteRefCount.set(midi, c);
+    if (c === 1) sendHwMidi(midi, true);
     if (!pianoKeys.has(midi)) return;
     pressedNotes.add(midi);
     const a = keyAnimations.get(midi);
@@ -179,6 +187,7 @@ function noteOff(midi) {
     const c = Math.max(0, (noteRefCount.get(midi)||0) - 1);
     noteRefCount.set(midi, c);
     if (c === 0) {
+        sendHwMidi(midi, false);
         pressedNotes.delete(midi);
         const a = keyAnimations.get(midi);
         if (a) a.target = 0;
@@ -406,6 +415,7 @@ window.addEventListener('keyup', (e) => {
 
 // HW MIDI
 let midiInputs = [];
+let midiOutputs = [];
 function setMidiStatus(t, ok=false) {
     if (!midiStatusEl) return;
     midiStatusEl.textContent = t;
@@ -419,8 +429,10 @@ function onHwMIDI(ev) {
 }
 function connectInputs(acc) {
     midiInputs.forEach(i => { i.onmidimessage = null; }); midiInputs = [];
+    midiOutputs = [];
     const names = [];
     for (const inp of acc.inputs.values()) { inp.onmidimessage = onHwMIDI; midiInputs.push(inp); names.push(inp.name); }
+    for (const out of acc.outputs.values()) { midiOutputs.push(out); }
     setMidiStatus(names.length ? `🎹 ${names.join(', ')}` : 'Brak urządzeń MIDI', names.length > 0);
 }
 (async () => {
@@ -982,4 +994,4 @@ window.addEventListener('resize', () => {
 });
 
 animate();
-console.log('VrPiano554 v1.6.6');
+console.log('VrPiano554 v1.6.7');
