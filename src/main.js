@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════════
 // VrPiano554 — 3D Viewer + MIDI Playback + Practice Mode
-// ver: 1.6.3
+// ver: 1.6.6
 // ═══════════════════════════════════════════════════════════════
 
 import * as THREE from 'three';
@@ -30,6 +30,45 @@ const songSelector = document.getElementById('song-selector');
 const noteCountEl = document.getElementById('player-note-count');
 const midiFileInput = document.getElementById('midi-file-input');
 const btnSpeed = document.getElementById('btn-speed');
+const btnToggleBlocks = document.getElementById('btn-toggle-blocks');
+const volumeSlider = document.getElementById('volume-slider');
+const volumeIcon = document.getElementById('volume-icon');
+
+// ─── Volume Logic ─────────────────────────────────────────────
+let currentVolume = -6;
+let isMuted = false;
+
+function updateVolumeIcon() {
+    if (!volumeIcon) return;
+    if (isMuted || currentVolume <= -40) {
+        volumeIcon.textContent = '🔇';
+    } else if (currentVolume < -15) {
+        volumeIcon.textContent = '🔈';
+    } else if (currentVolume < 0) {
+        volumeIcon.textContent = '🔉';
+    } else {
+        volumeIcon.textContent = '🔊';
+    }
+}
+
+if (volumeSlider) {
+    volumeSlider.addEventListener('input', (e) => {
+        const val = parseFloat(e.target.value);
+        currentVolume = val;
+        isMuted = false;
+        updateVolumeIcon();
+        if (synth) synth.volume.value = val <= -40 ? -Infinity : val;
+    });
+}
+if (volumeIcon) {
+    volumeIcon.addEventListener('click', () => {
+        isMuted = !isMuted;
+        updateVolumeIcon();
+        if (synth) {
+            synth.volume.value = isMuted ? -Infinity : (currentVolume <= -40 ? -Infinity : currentVolume);
+        }
+    });
+}
 
 // ─── Three.js Core ───────────────────────────────────────────
 const renderer = new THREE.WebGLRenderer({
@@ -153,6 +192,22 @@ function handleUserNoteOn(midi) {
     // Sparks on user key press
     const kp = keyWorldPos.get(midi);
     if (kp) emitSparks(kp.cx, kp.topY, kp.cz, isBlackKey(midi));
+
+    // Freestyle playback when paused
+    if (!songPlaying) {
+        if (!synthReady) {
+            ensureSynth().then(() => {
+                if (userNotes.has(midi) && synth) {
+                    const noteName = Tone.Frequency(midi, 'midi').toNote();
+                    try { synth.triggerAttack(noteName, Tone.now(), 0.7); } catch {}
+                }
+            });
+        } else if (synth) {
+            const noteName = Tone.Frequency(midi, 'midi').toNote();
+            try { synth.triggerAttack(noteName, Tone.now(), 0.7); } catch {}
+        }
+    }
+
     // Practice mode: require individual correct keys
     if (practiceWaiting && waitingMidiSet.has(midi)) {
         // Trigger only the notes associated with this specific key
@@ -173,6 +228,12 @@ function handleUserNoteOn(midi) {
 function handleUserNoteOff(midi) {
     userNotes.delete(midi);
     noteOff(midi);
+
+    // Freestyle release when paused
+    if (!songPlaying && synthReady && synth) {
+        const noteName = Tone.Frequency(midi, 'midi').toNote();
+        try { synth.triggerRelease(noteName, Tone.now()); } catch {}
+    }
 }
 
 function updateActiveNotesHUD() {
@@ -380,8 +441,10 @@ let playbackSpeed = 1.0;
 let nextNoteIdx = 0;
 let activeSongNotes = [];
 let blocksMesh = null;
+let showBlocks = true;
 let synth = null;
 let synthReady = false;
+let synthLoading = false;
 let midiLoaded = false;
 let blocksReady = false;
 
@@ -500,6 +563,11 @@ function buildSampleMap() {
 
 async function ensureSynth() {
     if (synthReady) return;
+    if (synthLoading) {
+        while (!synthReady) await new Promise(r => setTimeout(r, 50));
+        return;
+    }
+    synthLoading = true;
     await Tone.start();
     return new Promise((resolve) => {
         synth = new Tone.Sampler({
@@ -508,8 +576,9 @@ async function ensureSynth() {
             release: 1.2,
             onload: () => {
                 console.log('Piano samples loaded');
-                synth.volume.value = -6;
+                synth.volume.value = isMuted ? -Infinity : (currentVolume <= -40 ? -Infinity : currentVolume);
                 synthReady = true;
+                synthLoading = false;
                 resolve();
             },
         }).toDestination();
@@ -525,6 +594,7 @@ function tryInitBlocks() {
     blocksMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     blocksMesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(allNotes.length * 3), 3);
     blocksMesh.count = 0;
+    blocksMesh.visible = showBlocks;
     scene.add(blocksMesh);
     blocksReady = true;
 }
@@ -740,6 +810,13 @@ function fmtTime(s) { const m = Math.floor(s/60); return `${m}:${Math.floor(s%60
 btnPlay?.addEventListener('click', togglePlayback);
 btnStop?.addEventListener('click', stopSong);
 
+// Toggle blocks
+btnToggleBlocks?.addEventListener('click', () => {
+    showBlocks = !showBlocks;
+    btnToggleBlocks.classList.toggle('active', !showBlocks);
+    if (blocksMesh) blocksMesh.visible = showBlocks;
+});
+
 // Practice mode toggle
 btnPractice?.addEventListener('click', () => {
     practiceMode = !practiceMode;
@@ -905,4 +982,4 @@ window.addEventListener('resize', () => {
 });
 
 animate();
-console.log('VrPiano554 v1.6.3');
+console.log('VrPiano554 v1.6.6');

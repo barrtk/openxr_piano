@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>VrPiano554 - 3D Viewer</title>
     <meta name="description" content="Interaktywny podgląd modelu 3D pianina VR z trybem ćwiczenia, spadającymi blokami i syntezatorem">
-    <link rel="stylesheet" href="style.css?v=960">
+    <link rel="stylesheet" href="style.css?v=963">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
@@ -26,7 +26,7 @@
     <div id="app">
         <canvas id="canvas"></canvas>
         <div id="overlay">
-            <div id="app-version">ver: 1.6.3</div>
+            <div id="app-version">ver: 1.6.6</div>
 
             <!-- HUD Panel -->
             <div id="hud-panel" class="collapsed">
@@ -53,6 +53,12 @@
                     <div class="hud-section-label mt">MIDI</div>
                     <div id="midi-status">Łączenie z MIDI...</div>
                 </div>
+            </div>
+
+            <!-- Volume Control -->
+            <div id="volume-control">
+                <span id="volume-icon" title="Wycisz/Odwycisz">🔊</span>
+                <input type="range" id="volume-slider" min="-40" max="10" value="-6" step="1" title="Głośność">
             </div>
 
             <!-- Active Note Display -->
@@ -85,6 +91,7 @@
                         <input type="file" id="midi-file-input" accept=".mid,.midi" hidden>
                     </label>
                     <button id="btn-speed" class="player-btn" title="Tempo odtwarzania">1x</button>
+                    <button id="btn-toggle-blocks" class="player-btn" title="Ukryj/pokaż spadające bloki">🧊</button>
                     <div id="player-timeline-wrap">
                         <input type="range" id="timeline" min="0" max="1000" value="0" step="1">
                         <div id="timeline-fill"></div>
@@ -112,7 +119,7 @@
             </div>
         </div>
     </div>
-    <script type="module" src="src/main.js?v=960"></script>
+    <script type="module" src="src/main.js?v=963"></script>
 </body>
 
 </html>
